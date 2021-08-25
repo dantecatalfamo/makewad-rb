@@ -37,7 +37,11 @@ module MakeWad
     def to_file(filename)
       File.open(filename, 'wb') do |file|
         file.write('WAD2')
-        file.write([lump_count, 0].pack('C'))
+        file.write([lump_count].pack('l'))
+        dir_offset_pos = file.tell
+        # Placeholder until we come back to write the actual value
+        file.write([0].pack('l'))
+
         # TODO: Finish write
       end
     end
@@ -47,7 +51,7 @@ module MakeWad
   class Texture
     attr_reader :width, :height, :name, :data
 
-    def initialize(height, width, name)
+    def initialize(width, height, name)
       @width = width
       @height = height
       @name = name
@@ -68,18 +72,6 @@ module MakeWad
 
     def []=(x, y, value)
       @data[x, y] = value
-    end
-  end
-
-  # RGB representation of a pixel
-  class PaletteColor
-    attr_reader :r, :g, :b, :to_i
-
-    def initialize(red, green, blue)
-      @r = red
-      @g = green
-      @b = blue
-      @to_i = ChunkyPNG::Color(r, g, b)
     end
   end
 
@@ -113,6 +105,18 @@ module MakeWad
         end
       end
       best_match
+    end
+
+    # RGB representation of a pixel
+    class PaletteColor
+      attr_reader :r, :g, :b, :to_i
+
+      def initialize(red, green, blue)
+        @r = red
+        @g = green
+        @b = blue
+        @to_i = ChunkyPNG::Color(r, g, b)
+      end
     end
   end
 end
