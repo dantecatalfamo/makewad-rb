@@ -6,6 +6,9 @@ require 'chunky_png'
 module MakeWad
   # A collection of textures whos colors are mapped to a pallete
   class TextureWad
+    WAD_MAGIC = 'WAD2'
+    NULL = 0x0
+
     attr_reader :palette, :textures
 
     def initialize(palette)
@@ -35,13 +38,32 @@ module MakeWad
     end
 
     def to_file(filename)
+      texture_offsets = []
       File.open(filename, 'wb') do |file|
-        file.write('WAD2')
+        file.write(WAD_MAGIC)
+
         file.write([lump_count].pack('l'))
         dir_offset_pos = file.tell
         # Placeholder until we come back to write the actual value
         file.write([0].pack('l'))
 
+        textures.each do |texture|
+          texture_offsets << file.tell
+
+          file.write(texture.name)
+          file.write("\x00")
+
+          file.write(texture.width)
+          file.write(texture.height)
+
+          mips_offset = file.tell
+          # mipmap offset placeholders
+          4.times { file.write([0].pack('l')) }
+
+          4.times do |i|
+            # Scale mipmaps
+          end
+        end
         # TODO: Finish write
       end
     end
@@ -49,13 +71,13 @@ module MakeWad
 
   # A texture of 8-bit values corresponding to the index of the TextureWad palette
   class Texture
-    attr_reader :width, :height, :name, :data
+    attr_reader :width, :height, :name, :canvas
 
     def initialize(width, height, name)
       @width = width
       @height = height
       @name = name
-      @data = Array.new(width) { Array.new(height) }
+      @canvas = ChunkyPNG::Canvas.new(width, height)
     end
 
     def name=(new_name)
@@ -67,11 +89,17 @@ module MakeWad
     end
 
     def [](x, y)
-      @data[x, y]
+      canvas[x, y]
     end
 
     def []=(x, y, value)
-      @data[x, y] = value
+      canvas[x, y] = value
+    end
+
+    def scale_down(factor)
+      new_width = 2 / factor
+      new_height = 2 / factor
+      canvas.resample_nearest_neighbor(new_width, new_height)
     end
   end
 
