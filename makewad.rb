@@ -38,10 +38,10 @@ module MakeWad
     end
 
     def to_file(filename)
-      texture_offsets = []
       File.open(filename, 'wb') do |file|
-        file.write(WAD_MAGIC)
+        texture_offsets = []
 
+        file.write(WAD_MAGIC)
         file.write([lump_count].pack('l'))
         dir_offset_pos = file.tell
         # Placeholder until we come back to write the actual value
@@ -53,15 +53,17 @@ module MakeWad
           file.write(texture.name)
           file.write("\x00")
 
-          file.write(texture.width)
-          file.write(texture.height)
+          file.write([texture.width].pack('l'))
+          file.write([texture.height].pack('l'))
 
           mips_offset = file.tell
           # mipmap offset placeholders
           4.times { file.write([0].pack('l')) }
 
-          4.times do |i|
-            # Scale mipmaps
+          mips = []
+          4.times do |_i|
+            mip = texture.scale_down(i)
+            # TODO: Finish writing mips and directories
           end
         end
         # TODO: Finish write
@@ -73,11 +75,11 @@ module MakeWad
   class Texture
     attr_reader :width, :height, :name, :canvas
 
-    def initialize(width, height, name)
+    def initialize(width, height, name, initial = nil)
       @width = width
       @height = height
-      @name = name
-      @canvas = ChunkyPNG::Canvas.new(width, height)
+      self.name = name
+      @canvas = initial || ChunkyPNG::Canvas.new(width, height)
     end
 
     def name=(new_name)
@@ -97,9 +99,10 @@ module MakeWad
     end
 
     def scale_down(factor)
-      new_width = 2 / factor
-      new_height = 2 / factor
-      canvas.resample_nearest_neighbor(new_width, new_height)
+      new_width = width / (2 * factor)
+      new_height = height / (2 * factor)
+      scaled = canvas.resample_nearest_neighbor(new_width, new_height)
+      Texture.new(new_width, new_height, name, scaled)
     end
   end
 
