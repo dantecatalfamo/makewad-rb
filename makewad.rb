@@ -61,8 +61,10 @@ module MakeWad
           4.times { file.write([0].pack('l')) }
 
           mips = []
-          4.times do |_i|
+          4.times do
+            mips << file.tell - texture_offsets.last
             mip = texture.scale_down(i)
+            file.write(mip.pixels.pack('C*'))
             # TODO: Finish writing mips and directories
           end
         end
@@ -149,6 +151,15 @@ module MakeWad
         @to_i = ChunkyPNG::Color(r, g, b)
       end
     end
+  end
+end
+
+class IO
+  def scoped_seek(amount, whence = IO::SEEK_SET)
+    current_seek = tell
+    seek(amount, whence)
+    yield tell
+    seek(current_seek, IO::SEEK_SET)
   end
 end
 
