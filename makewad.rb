@@ -65,10 +65,47 @@ module MakeWad
             mips << file.tell - texture_offsets.last
             mip = texture.scale_down(i)
             file.write(mip.pixels.pack('C*'))
-            # TODO: Finish writing mips and directories
+          end
+
+          file.scoped_seek(mips_offset) do
+            mips.each do |offset|
+              file.write([offset].pack('l'))
+            end
           end
         end
-        # TODO: Finish write
+
+        palette_offset = file.tell
+        palette.values.each do |value|
+          file.write([value.r].pack('C'))
+          file.write([value.g].pack('C'))
+          file.write([value.b].pack('C'))
+        end
+
+        dir_offset = file.tell
+        file.scoped_seek(dir_offset_pos) do
+          file.write([dir_offset].pack('l'))
+        end
+
+        textures.each_with_index do |texture, idx|
+          offset = texture_offsets[idx]
+          next_offset = texture_offsets[idx + 1]
+          size = next_offset - offset
+          file.write([offset].pack('l'))
+          file.write([size].pack('l'))
+          file.write([size].pack('l'))
+          file.write('D')
+          file.write([0].pack('C'))
+          file.write([0].pack('S'))
+          file.write(texture.name_bytes)
+        end
+
+        file.write([palette_offset].pack('l'))
+        file.write([256 * 3].pack('l'))
+        file.write([256 * 3].pack('l'))
+        file.write('@')
+        file.write([0].pack('C'))
+        file.write([0].pack('S'))
+        file.write("PALETTE\0\0\0\0\0\0\0\0\0")
       end
     end
   end
@@ -90,6 +127,14 @@ module MakeWad
         new_name = new_name[0...15]
       end
       @name = new_name
+    end
+
+    def name_bytes
+      bytes = Array.new(16, "\x00")
+      name.chars.each_with_index do |char, idx|
+        bytes[idx] = char
+      end
+      bytes.join
     end
 
     def [](x, y)
@@ -131,7 +176,7 @@ module MakeWad
       best_match = 0
       best_distance = Float::INFINITY
       values.each_with_index do |value, idx|
-        distance = ChunkyPNG::Color.euclidean_distance_rgba(color, value)
+        distance = ChunkyPNG::Color.euclidean_distance_rgba(color, value.to_i)
         if distance < best_distance
           best_distance = distance
           best_match = idx
