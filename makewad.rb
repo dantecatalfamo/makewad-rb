@@ -9,7 +9,7 @@ module MakeWad
   MIP_TYPE = 'D'
   PALETTE_TYPE = '@'
   NULL_BYTE = [0].pack('C')
-  NULLL_SHORT = [0].pack('S')
+  NULL_SHORT = [0].pack('S')
   NULL_LONG = [0].pack('L')
 
   # A collection of textures whos colors are mapped to a pallete
@@ -27,13 +27,13 @@ module MakeWad
     end
 
     def add_file(file)
+      puts %(Processing "#{file}")
       png = ChunkyPNG::Image.from_file(file)
       name = File.basename(file, '.png')
       texture = Texture.new(png.width, png.height, name)
-      png.width.times do |x|
-        png.height.times do |y|
-          texture[x, y] = palette.nearest_entry(png[x, y])
-        end
+      texture_pixels = texture.pixels
+      png.pixels.each_with_index do |pixel, idx|
+        texture_pixels[idx] = palette.nearest_entry(pixel)
       end
       @textures << texture
     end
@@ -88,8 +88,12 @@ module MakeWad
       @canvas = initial || ChunkyPNG::Canvas.new(width, height)
     end
 
+    def pixels
+      canvas.pixels
+    end
+
     def name=(new_name)
-      if new_name.length < 15
+      if new_name.length > 15
         puts "Warning: \"#{new_name}\" will be truncated to 15 characters."
         new_name = new_name[0...15]
       end
@@ -129,17 +133,17 @@ module MakeWad
     end
 
     def scale_down(factor)
-      new_width = width / (2 * factor)
-      new_height = height / (2 * factor)
+      new_width = factor.zero? ? width : (width / (2 * factor))
+      new_height = factor.zero? ? height : (height / (2 * factor))
       scaled = canvas.resample_nearest_neighbor(new_width, new_height)
       Texture.new(new_width, new_height, name, scaled)
     end
 
     def mipmap
       buf = StringIO.new
-      buf << texture.name_bytes
-      buf << texture.width_long
-      buf << texture.height_long
+      buf << name_bytes
+      buf << width_long
+      buf << height_long
 
       mips_offset = buf.tell
       # mipmap offset placeholders
@@ -149,7 +153,7 @@ module MakeWad
       4.times do |i|
         mip = scale_down(i)
         mip.offset = buf.tell
-        mip << mips
+        mips << mip
         buf << mip.bytes
       end
 
@@ -271,7 +275,7 @@ module MakeWad
       wad = TextureWad.new(palette)
       wad.add_directory(texture_directory)
       wad.to_file(wad_filename)
-      puts %(Texture WAD exported to "#{wad_filename} successfully")
+      puts %(Texture WAD exported to "#{wad_filename}" successfully)
     end
   end
 end
