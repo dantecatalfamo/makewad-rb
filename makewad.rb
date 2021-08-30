@@ -5,15 +5,15 @@ require 'stringio'
 require 'chunky_png'
 
 module MakeWad
+  WAD_MAGIC = 'WAD2'
+  MIP_TYPE = 'D'
+  PALETTE_TYPE = '@'
+  NULL_BYTE = [0].pack('C')
+  NULLL_SHORT = [0].pack('S')
+  NULL_LONG = [0].pack('L')
+
   # A collection of textures whos colors are mapped to a pallete
   class TextureWad
-    WAD_MAGIC = 'WAD2'
-    MIP_TYPE = 'D'
-    PALETTE_TYPE = '@'
-    NULL_BYTE = [0].pack('C')
-    NULLL_SHORT = [0].pack('S')
-    NULL_LONG = [0].pack('L')
-
     attr_reader :palette, :textures
 
     def initialize(palette)
