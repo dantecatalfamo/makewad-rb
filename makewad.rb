@@ -31,15 +31,15 @@ module MakeWad
       png = ChunkyPNG::Image.from_file(file)
       name = File.basename(file, '.png')
       texture = Texture.new(png.width, png.height, name)
-      bar = TTY::ProgressBar.new("Processing #{texture.name.ljust(15)} :bar", total: 60, bar_format: :block)
+      bar = TTY::ProgressBar.new("Processing #{texture.name.ljust(15)} :bar",
+                                 width: 60, total: texture.pixels.length,
+                                 bar_format: :block)
       texture_pixels = texture.pixels
-      number_pixels = texture_pixels.length.to_f
-      bar.start
       png.pixels.each_with_index do |pixel, idx|
         texture_pixels[idx] = palette.nearest_entry(pixel)
         next unless idx % 500 == 0
 
-        bar.ratio = idx / number_pixels
+        bar.current = idx
       end
       bar.finish
       @textures << texture
