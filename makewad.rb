@@ -184,7 +184,7 @@ module MakeWad
     attr_reader :values
 
     def self.from_file(filename)
-      bytes = File.read(filename, 'rb')
+      bytes = File.read(filename).bytes
       values = []
       256.times do
         values << PaletteColor.new(*bytes.shift(3))
@@ -251,13 +251,25 @@ module MakeWad
       end
     end
   end
+
+  class CLI
+    def usage
+      puts "Usage: #{$PROGRAM_NAME}: <in folder> <in palette> <out wad>"
+    end
+
+    def run
+      if ARGV.length != 3
+        usage
+        abort
+      end
+      palette_file = ARGV[1]
+      abort %(Palette file "#{palette_file}" does not exist) unless File.exist? palette_file
+      palette = Palette.from_file(palette_file)
+      puts "Palette: #{palette}"
+      wad = TextureWad.new(palette)
+      puts wad
+    end
+  end
 end
 
-def usage
-  puts "Usage: #{$PROGRAM_NAME}: <in folder> <in palette> <out wad>"
-end
-
-if ARGV.length < 3
-  usage
-  abort
-end
+MakeWad::CLI.new.run
