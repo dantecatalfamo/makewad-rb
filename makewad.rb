@@ -212,11 +212,11 @@ module MakeWad
     end
 
     def bytes
-      byte_str = ''
+      buf = StringIO.new
       values.each do |value|
-        byte_str << [value.r, value.g, value.b].pack('C*')
+        buf << [value.r, value.g, value.b].pack('C*')
       end
-      byte_str
+      buf.string
     end
 
     def offset_long
