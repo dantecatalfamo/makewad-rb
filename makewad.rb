@@ -63,15 +63,15 @@ module MakeWad
         file << palette.bytes
 
         dir_offset = file.tell
-        file.scoped_seek(dir_offset_pos) do
-          file.write([dir_offset].pack('l'))
-        end
 
         textures.each do |texture|
           file << texture.directory_entry
         end
 
         file << palette.directory_entry
+
+        file.seek(dir_offset_pos)
+        file << [dir_offset].pack('l')
       end
     end
   end
@@ -250,16 +250,6 @@ module MakeWad
         @to_i = ChunkyPNG::Color(r, g, b)
       end
     end
-  end
-end
-
-# Utility method to make writing TextureWas#to_file easier
-class IO
-  def scoped_seek(amount, whence = IO::SEEK_SET)
-    current_seek = tell
-    seek(amount, whence)
-    yield tell
-    seek(current_seek, IO::SEEK_SET)
   end
 end
 
