@@ -3,6 +3,7 @@ GEM
   specs:
     chunky_png (1.4.0)
     strings-ansi (0.2.0)
+    thread (0.2.2)
     tty-cursor (0.7.1)
     tty-progressbar (0.18.2)
       strings-ansi (~> 0.2)
@@ -18,6 +19,7 @@ PLATFORMS
 
 DEPENDENCIES
   chunky_png (~> 1.4)
+  thread (~> 0.2.2)
   tty-progressbar (~> 0.18.2)
 
 BUNDLED WITH

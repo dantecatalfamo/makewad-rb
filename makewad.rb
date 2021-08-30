@@ -4,6 +4,8 @@
 require 'stringio'
 require 'chunky_png'
 require 'tty-progressbar'
+require 'thread/pool'
+require 'thread/channel'
 
 module MakeWad
   WAD_MAGIC = 'WAD2'
@@ -24,25 +26,34 @@ module MakeWad
 
     def add_directory(directory)
       files = Dir.glob("#{directory}/**/*.png")
-      files.each { |file| add_file(file) }
+      pool = Thread.pool(16)
+      channel = Thread.channel
+      files.each do |file|
+        pool.process do
+          puts "Processing #{file}"
+          channel.send(process_file(file))
+          puts "Finished #{file}"
+        end
+      end
+      files.size.times do
+        @textures << channel.receive
+      end
+      pool.shutdown
     end
 
     def add_file(file)
+      @textures << process_file(file)
+    end
+
+    def process_file(file)
       png = ChunkyPNG::Image.from_file(file)
       name = File.basename(file, '.png')
       texture = Texture.new(png.width, png.height, name)
-      bar = TTY::ProgressBar.new("Processing #{texture.name.ljust(15)} :bar",
-                                 width: 60, total: texture.pixels.length,
-                                 bar_format: :block)
       texture_pixels = texture.pixels
       png.pixels.each_with_index do |pixel, idx|
         texture_pixels[idx] = palette.nearest_entry(pixel)
-        next unless idx % 500 == 0
-
-        bar.current = idx
       end
-      bar.finish
-      @textures << texture
+      texture
     end
 
     def lump_count
@@ -277,7 +288,7 @@ module MakeWad
       @in_palette = ARGV[1]
       @out_wad = ARGV[2]
       abort %(Palette file "#{@inpalette}" does not exist) unless File.exist?(@in_palette)
-      abort "Palette is incorrect size, should be 768 bytes" unless File.size(@in_palette) == 768
+      abort 'Palette is incorrect size, should be 768 bytes' unless File.size(@in_palette) == 768
       abort %(Texture directory "#{@in_directory}" does not exist) unless Dir.exist?(@in_directory)
     end
 
