@@ -22,7 +22,7 @@ module MakeWad
     end
 
     def add_directory(directory)
-      files = Files.glob("#{directory}/**/*.png")
+      files = Dir.glob("#{directory}/**/*.png")
       files.each { |file| add_file(file) }
     end
 
@@ -262,12 +262,16 @@ module MakeWad
         usage
         abort
       end
+      texture_directory = ARGV[0]
       palette_file = ARGV[1]
-      abort %(Palette file "#{palette_file}" does not exist) unless File.exist? palette_file
+      wad_filename = ARGV[2]
+      abort %(Palette file "#{palette_file}" does not exist) unless File.exist?(palette_file)
+      abort %(Texture directory "#{texture_directory}" does not exist) unless Dir.exist?(texture_directory)
       palette = Palette.from_file(palette_file)
-      puts "Palette: #{palette}"
       wad = TextureWad.new(palette)
-      puts wad
+      wad.add_directory(texture_directory)
+      wad.to_file(wad_filename)
+      puts %(Texture WAD exported to "#{wad_filename} successfully")
     end
   end
 end
