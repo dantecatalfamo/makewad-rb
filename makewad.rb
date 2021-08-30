@@ -54,6 +54,7 @@ module MakeWad
     end
 
     def to_file(filename)
+      puts 'Building WAD...'
       File.open(filename, 'wb') do |file|
         file << WAD_MAGIC
         file << lump_count_long
