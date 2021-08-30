@@ -205,10 +205,12 @@ module MakeWad
 
     def initialize(values)
       @values = values
+      @color_cache = {}
     end
 
     def nearest_entry(color)
       return 0 if ChunkyPNG::Color.a(color).zero?
+      return @color_cache[color] if @color_cache.key?(color)
 
       best_match = 0
       best_distance = Float::INFINITY
@@ -219,6 +221,7 @@ module MakeWad
           best_match = idx
         end
       end
+      @color_cache[color] = best_match
       best_match
     end
 
