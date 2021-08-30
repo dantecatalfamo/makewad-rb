@@ -3,6 +3,7 @@
 
 require 'stringio'
 require 'chunky_png'
+require 'tty-progressbar'
 
 module MakeWad
   WAD_MAGIC = 'WAD2'
@@ -27,14 +28,20 @@ module MakeWad
     end
 
     def add_file(file)
-      puts %(Processing "#{file}")
       png = ChunkyPNG::Image.from_file(file)
       name = File.basename(file, '.png')
       texture = Texture.new(png.width, png.height, name)
+      bar = TTY::ProgressBar.new("Processing #{texture.name.ljust(15)} :bar", total: 60, bar_format: :block)
       texture_pixels = texture.pixels
+      number_pixels = texture_pixels.length.to_f
+      bar.start
       png.pixels.each_with_index do |pixel, idx|
         texture_pixels[idx] = palette.nearest_entry(pixel)
+        next unless idx % 500 == 0
+
+        bar.ratio = idx / number_pixels
       end
+      bar.finish
       @textures << texture
     end
 
@@ -261,21 +268,26 @@ module MakeWad
       puts "Usage: #{$PROGRAM_NAME}: <in folder> <in palette> <out wad>"
     end
 
+    def process_args
+      @in_directory = ARGV[0]
+      @in_palette = ARGV[1]
+      @out_wad = ARGV[2]
+      abort %(Palette file "#{@inpalette}" does not exist) unless File.exist?(@in_palette)
+      abort %(Texture directory "#{@in_directory}" does not exist) unless Dir.exist?(@in_directory)
+    end
+
     def run
       if ARGV.length != 3
         usage
         abort
       end
-      texture_directory = ARGV[0]
-      palette_file = ARGV[1]
-      wad_filename = ARGV[2]
-      abort %(Palette file "#{palette_file}" does not exist) unless File.exist?(palette_file)
-      abort %(Texture directory "#{texture_directory}" does not exist) unless Dir.exist?(texture_directory)
-      palette = Palette.from_file(palette_file)
+      process_args
+
+      palette = Palette.from_file(@in_palette)
       wad = TextureWad.new(palette)
-      wad.add_directory(texture_directory)
-      wad.to_file(wad_filename)
-      puts %(Texture WAD exported to "#{wad_filename}" successfully)
+      wad.add_directory(@in_directory)
+      wad.to_file(@out_wad)
+      puts %(Texture WAD exported to "#{@out_wad}" successfully)
     end
   end
 end
