@@ -7,7 +7,11 @@ module MakeWad
   # A collection of textures whos colors are mapped to a pallete
   class TextureWad
     WAD_MAGIC = 'WAD2'
-    NULL = 0x0
+    MIP_TYPE = 'D'
+    PALETTE_TYPE = '@'
+    NULL_BYTE = [0].pack('C')
+    NULLL_SHORT = [0].pack('S')
+    NULL_LONG = [0].pack('L')
 
     attr_reader :palette, :textures
 
@@ -37,49 +41,47 @@ module MakeWad
       @textures.length + 1
     end
 
+    def lump_count_long
+      [lump_count].pack('l')
+    end
+
     def to_file(filename)
       File.open(filename, 'wb') do |file|
-        texture_offsets = []
-
         file.write(WAD_MAGIC)
-        file.write([lump_count].pack('l'))
+        file.write(lump_count_long)
         dir_offset_pos = file.tell
         # Placeholder until we come back to write the actual value
-        file.write([0].pack('l'))
+        file.write(NULL_LONG)
 
         textures.each do |texture|
-          texture_offsets << file.tell
+          texture.offset = file.tell
 
-          file.write(texture.name)
-          file.write("\x00")
-
-          file.write([texture.width].pack('l'))
-          file.write([texture.height].pack('l'))
+          file.write(texture.name_bytes)
+          file.write(texture.width_long)
+          file.write(texture.height_long)
 
           mips_offset = file.tell
           # mipmap offset placeholders
-          4.times { file.write([0].pack('l')) }
+          4.times { file.write(NULL_LONG) }
 
           mips = []
           4.times do
-            mips << file.tell - texture_offsets.last
             mip = texture.scale_down(i)
-            file.write(mip.pixels.pack('C*'))
+            mip.offset = file.tell - texture.offset
+            mip << mips
+            file.write(mip.bytes)
           end
 
           file.scoped_seek(mips_offset) do
-            mips.each do |offset|
-              file.write([offset].pack('l'))
+            mips.each do |mip|
+              file.write(mip.offset_long)
             end
           end
         end
 
-        palette_offset = file.tell
-        palette.values.each do |value|
-          file.write([value.r].pack('C'))
-          file.write([value.g].pack('C'))
-          file.write([value.b].pack('C'))
-        end
+        after_last_texture = file.tell
+        palette.offset = file.tell
+        file.write(palette.bytes)
 
         dir_offset = file.tell
         file.scoped_seek(dir_offset_pos) do
@@ -87,24 +89,23 @@ module MakeWad
         end
 
         textures.each_with_index do |texture, idx|
-          offset = texture_offsets[idx]
-          next_offset = texture_offsets[idx + 1]
-          size = next_offset - offset
-          file.write([offset].pack('l'))
+          next_offset = textures[idx + 1].nil? ? after_last_texture : textures[idx + 1].offset
+          size = next_offset - texture.offset
+          file.write(texture.offset_long)
           file.write([size].pack('l'))
           file.write([size].pack('l'))
-          file.write('D')
-          file.write([0].pack('C'))
-          file.write([0].pack('S'))
+          file.write(MIP_TYPE)
+          file.write(NULL_BYTE)
+          file.write(NULL_SHORT)
           file.write(texture.name_bytes)
         end
 
-        file.write([palette_offset].pack('l'))
-        file.write([256 * 3].pack('l'))
-        file.write([256 * 3].pack('l'))
-        file.write('@')
-        file.write([0].pack('C'))
-        file.write([0].pack('S'))
+        file.write(palette.offset_long)
+        file.write(palette.size_long)
+        file.write(palette.size_long)
+        file.write(PALETTE_TYPE)
+        file.write(NULL_BYTE)
+        file.write(NULL_SHORT)
         file.write("PALETTE\0\0\0\0\0\0\0\0\0")
       end
     end
@@ -112,6 +113,7 @@ module MakeWad
 
   # A texture of 8-bit values corresponding to the index of the TextureWad palette
   class Texture
+    attr_accessor :offset
     attr_reader :width, :height, :name, :canvas
 
     def initialize(width, height, name, initial = nil)
@@ -137,6 +139,22 @@ module MakeWad
       bytes.join
     end
 
+    def bytes
+      canvas.pixels.pack('C*')
+    end
+
+    def width_long
+      [width].pack('l')
+    end
+
+    def height_long
+      [height].pack('l')
+    end
+
+    def offset_long
+      [offset].pack('l')
+    end
+
     def [](x, y)
       canvas[x, y]
     end
@@ -155,6 +173,7 @@ module MakeWad
 
   # A palette of 256 24-bit colors
   class Palette
+    attr_accessor :offset
     attr_reader :values
 
     def self.from_file(filename)
@@ -183,6 +202,22 @@ module MakeWad
         end
       end
       best_match
+    end
+
+    def bytes
+      byte_str = ''
+      values.each do |value|
+        byte_str << [value.r, value.g, value.b].pack('C*')
+      end
+      byte_str
+    end
+
+    def offset_long
+      [offset].pack('l')
+    end
+
+    def size_long
+      [256 * 3].pack('l')
     end
 
     # RGB representation of a pixel
