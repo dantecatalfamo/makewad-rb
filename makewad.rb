@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require 'stringio'
 require 'chunky_png'
 
 module MakeWad
@@ -47,66 +48,30 @@ module MakeWad
 
     def to_file(filename)
       File.open(filename, 'wb') do |file|
-        file.write(WAD_MAGIC)
-        file.write(lump_count_long)
+        file << WAD_MAGIC
+        file << lump_count_long
         dir_offset_pos = file.tell
         # Placeholder until we come back to write the actual value
-        file.write(NULL_LONG)
+        file << NULL_LONG
 
         textures.each do |texture|
           texture.offset = file.tell
-
-          file.write(texture.name_bytes)
-          file.write(texture.width_long)
-          file.write(texture.height_long)
-
-          mips_offset = file.tell
-          # mipmap offset placeholders
-          4.times { file.write(NULL_LONG) }
-
-          mips = []
-          4.times do
-            mip = texture.scale_down(i)
-            mip.offset = file.tell - texture.offset
-            mip << mips
-            file.write(mip.bytes)
-          end
-
-          file.scoped_seek(mips_offset) do
-            mips.each do |mip|
-              file.write(mip.offset_long)
-            end
-          end
+          file << texture.mipmap
         end
 
-        after_last_texture = file.tell
         palette.offset = file.tell
-        file.write(palette.bytes)
+        file << palette.bytes
 
         dir_offset = file.tell
         file.scoped_seek(dir_offset_pos) do
           file.write([dir_offset].pack('l'))
         end
 
-        textures.each_with_index do |texture, idx|
-          next_offset = textures[idx + 1].nil? ? after_last_texture : textures[idx + 1].offset
-          size = next_offset - texture.offset
-          file.write(texture.offset_long)
-          file.write([size].pack('l'))
-          file.write([size].pack('l'))
-          file.write(MIP_TYPE)
-          file.write(NULL_BYTE)
-          file.write(NULL_SHORT)
-          file.write(texture.name_bytes)
+        textures.each do |texture|
+          file << texture.directory_entry
         end
 
-        file.write(palette.offset_long)
-        file.write(palette.size_long)
-        file.write(palette.size_long)
-        file.write(PALETTE_TYPE)
-        file.write(NULL_BYTE)
-        file.write(NULL_SHORT)
-        file.write("PALETTE\0\0\0\0\0\0\0\0\0")
+        file << palette.directory_entry
       end
     end
   end
@@ -114,7 +79,7 @@ module MakeWad
   # A texture of 8-bit values corresponding to the index of the TextureWad palette
   class Texture
     attr_accessor :offset
-    attr_reader :width, :height, :name, :canvas
+    attr_reader :width, :height, :name, :canvas, :mipmap_size
 
     def initialize(width, height, name, initial = nil)
       @width = width
@@ -169,6 +134,48 @@ module MakeWad
       scaled = canvas.resample_nearest_neighbor(new_width, new_height)
       Texture.new(new_width, new_height, name, scaled)
     end
+
+    def mipmap
+      buf = StringIO.new
+      buf << texture.name_bytes
+      buf << texture.width_long
+      buf << texture.height_long
+
+      mips_offset = buf.tell
+      # mipmap offset placeholders
+      buf << NULL_LONG * 4
+
+      mips = []
+      4.times do |i|
+        mip = scale_down(i)
+        mip.offset = buf.tell
+        mip << mips
+        buf << mip.bytes
+      end
+
+      buf.seek(mips_offset)
+      mips.each do |mip|
+        buf << mip.offset_long
+      end
+      @mipmap_size = buf.size
+      buf.string
+    end
+
+    def mipmap_size_long
+      [mipmap_size].pack('l')
+    end
+
+    def directory_entry
+      buf = StringIO.new
+      buf << offset_long
+      buf << mipmap_size_long
+      buf << mipmap_size_long
+      buf << MIP_TYPE
+      buf << NULL_BYTE
+      buf << NULL_SHORT
+      buf << name_bytes
+      buf.string
+    end
   end
 
   # A palette of 256 24-bit colors
@@ -220,6 +227,18 @@ module MakeWad
       [256 * 3].pack('l')
     end
 
+    def directory_entry
+      buf = StringIO.new
+      buf << offset_long
+      buf << size_long
+      buf << size_long
+      buf << PALETTE_TYPE
+      buf << NULL_BYTE
+      buf << NULL_SHORT
+      buf << "PALETTE\0\0\0\0\0\0\0\0\0"
+      buf.string
+    end
+
     # RGB representation of a pixel
     class PaletteColor
       attr_reader :r, :g, :b, :to_i
@@ -234,6 +253,7 @@ module MakeWad
   end
 end
 
+# Utility method to make writing TextureWas#to_file easier
 class IO
   def scoped_seek(amount, whence = IO::SEEK_SET)
     current_seek = tell
