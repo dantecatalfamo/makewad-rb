@@ -276,6 +276,7 @@ module MakeWad
       @in_palette = ARGV[1]
       @out_wad = ARGV[2]
       abort %(Palette file "#{@inpalette}" does not exist) unless File.exist?(@in_palette)
+      abort "Palette is incorrect size, should be 768 bytes" unless File.size(@in_palette) == 768
       abort %(Texture directory "#{@in_directory}" does not exist) unless Dir.exist?(@in_directory)
     end
 
